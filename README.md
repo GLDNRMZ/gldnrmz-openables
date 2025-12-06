@@ -37,6 +37,25 @@ emsstarterbox = {name = 'emsstarterbox', label = 'EMS Starter Box', weight = 200
     },
 ```
 
+**Random Selection**
+```lua
+    {
+        usedItem = "giftbox",
+        prop = "bkr_prop_coke_dollbox",
+        givenItems = {
+            random = true,        -- enable random selection
+            items = 2,            -- pick this many distinct entries from below
+            { givenItem = "lockpick", amount = 1, chance = 50 },    -- 50% chance
+            { givenItem = "ifaks", amount = 2, chance = 0.25 },     -- 25% chance (0-1 form)
+            { givenItem = "radio", amount = 1 },                     -- default 100% chance
+        }
+    },
+```
+
+- When `random = true` is present, entries are first filtered by `chance` (if provided), then the list is shuffled and the first `items` entries are given (clamped to available entries).
+- `chance` can be `0–100` (percent) or `0–1` (decimal). If omitted, defaults to `100`.
+- `amount` supports ranges: use `{min, max}` to get a random amount within the range.
+
 * [preview]
 
 **You have permission to use this in your server and edit for your personal needs but are not allowed to redistribute.**

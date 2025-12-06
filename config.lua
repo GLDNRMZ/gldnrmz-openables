@@ -42,13 +42,13 @@ Config.ItemsToConvert = {
     ------------
     --GIFT BOX--
     ------------
-    {
-        usedItem = "giftbox",
-        prop = "bkr_prop_coke_dollbox",
-        givenItems = {
-            { givenItem = "lockpick", amount = 4 },
-        }
-    },
+    -- {
+    --     usedItem = "giftbox",
+    --     prop = "bkr_prop_coke_dollbox",
+    --     givenItems = {
+    --         { givenItem = "lockpick", amount = 4 },
+    --     }
+    -- },
     --------------------
     --JOB STARTER KITS--
     --------------------
@@ -134,6 +134,52 @@ Config.ItemsToConvert = {
         prop = "prop_money_bag_01",
         givenItems = {
             { givenItem = "black_money", amount = {20000,25000} }
+        }
+    },
+    ------------
+    --Random BOX--
+    ------------
+    {
+        usedItem = "giftbox",
+        prop = "xm3_prop_xm3_present_01a",
+        givenItems = {
+            random = true,
+            items = 3,
+            { givenItem = "lockpick", amount = 4, chance = 50 },
+            { givenItem = "cigarette", amount = 20, chance = 50 },
+            { givenItem = "plastic", amount = 50, chance = 50 },
+            { givenItem = "rubber", amount = 50, chance = 50 },
+            { givenItem = "glass", amount = 50, chance = 50 },
+            { givenItem = "aluminum", amount = 50, chance = 50 },
+            { givenItem = "iron", amount = 50, chance = 50 },
+            { givenItem = "ammo-9", amount = 100, chance = 50 },
+            { givenItem = "advancedlockpick", amount = 4, chance = 25 },
+            { givenItem = "cash", amount = 4000, chance = 25 },
+            { givenItem = "cash", amount = 50000, chance = 2 },
+            { givenItem = "cash", amount = 100000, chance = 1 },
+            { givenItem = "customizableplate", amount = 1, chance = 3 },
+            { givenItem = "shitgpu", amount = 1, chance = 10 },
+            { givenItem = "1050gpu", amount = 1, chance = 10 },
+            { givenItem = "1060gpu", amount = 1, chance = 5 },
+            { givenItem = "1080gpu", amount = 1, chance = 5 },
+            { givenItem = "2080gpu", amount = 1, chance = 3 },
+            { givenItem = "3060gpu", amount = 1, chance = 3 },
+            { givenItem = "4090gpu", amount = 1, chance = 1 },
+            { givenItem = "5090gpu", amount = 1, chance = 1 },
+            { givenItem = "knife_crate", amount = 1, chance = 3 },
+            { givenItem = "knife_crate2", amount = 1, chance = 3 },
+            { givenItem = "knife_crate3", amount = 1, chance = 3 },
+            { givenItem = "racingtablet", amount = 1, chance = 3 },
+            { givenItem = "boostingtablet", amount = 1, chance = 3 },
+            { givenItem = "x_device", amount = 1, chance = 5 },
+            { givenItem = "x_circuittester", amount = 1, chance = 5 },
+            { givenItem = "x_harddrive", amount = 1, chance = 5 },
+            { givenItem = "thermite", amount = 1, chance = 5 },
+            { givenItem = "x_trojanusb2", amount = 1, chance = 5 },
+            { givenItem = "x_laptop", amount = 1, chance = 5 },
+            { givenItem = "potty_tp", amount = 1, chance = 5 },
+            { givenItem = "sealed_cache", amount = 1, chance = 5 },
+            { givenItem = "saw", amount = 1, chance = 1 },
         }
     },
 }
