@@ -1,61 +1,93 @@
 Config = {}
 
+-- Framework Configuration
+Config.Framework = 'auto'  -- 'auto' = auto-detect, 'qb' = QB-Core, 'qbox' = QBox, 'esx' = ESX, 'none' = standalone
+Config.Inventory = 'auto'  -- 'auto' = auto-detect, 'ox_inventory', 'framework', 'none'
+
+-- Security & Performance Settings
+Config.EnableLogging = false                -- Enable detailed logging of conversions
+Config.EnableRateLimit = true              -- Enable cooldown system
+Config.GlobalCooldown = 1000               -- Milliseconds between uses (prevents spam)
+Config.CheckInventorySpace = true          -- Validate inventory space before adding items
+Config.CheckItemExists = true              -- Verify items exist in database
+Config.JobWhitelistEnabled = true          -- Enable job restrictions for starter kits
+Config.PreLoadModels = true                -- Pre-load prop models on startup
+Config.Debug = false                       -- Enable debug messages
+
 Config.ItemsToConvert = {
     --------------
     --AMMO BOXES--
     --------------
     {
         usedItem = "pistolammobox",
-        prop = "v_ret_gc_ammo5",
+        prop = {
+            model = "v_ret_gc_ammo5",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "ammo-45", amount = 100 }
         }
     },
     {
         usedItem = "smgammobox",
-        prop = "v_ret_gc_ammo5",
+        prop = {
+            model = "v_ret_gc_ammo5",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "ammo-9", amount = 100 }
         }
     },
     {
         usedItem = "rifleammobox",
-        prop = "v_ret_gc_ammo4",
+        prop = {
+            model = "v_ret_gc_ammo4",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "ammo-rifle", amount = 80 }
         }
     },
     {
         usedItem = "shotgunammobox",
-        prop = "prop_ld_ammo_pack_02",
+        prop = {
+            model = "prop_ld_ammo_pack_02",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "ammo-shotgun", amount = 20 }
         }
     },
     {
         usedItem = "sniperammobox",
-        prop = "v_ret_gc_ammo4",
+        prop = {
+            model = "v_ret_gc_ammo4",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "ammo-sniper", amount = 40 }
         }
     },
-    ------------
-    --GIFT BOX--
-    ------------
-    -- {
-    --     usedItem = "giftbox",
-    --     prop = "bkr_prop_coke_dollbox",
-    --     givenItems = {
-    --         { givenItem = "lockpick", amount = 4 },
-    --     }
-    -- },
-    --------------------
-    --JOB STARTER KITS--
-    --------------------
-    --qb-policejob/r-14evidence--
+
     {
         usedItem = "pdstarterbox",
-        prop = "bkr_prop_duffel_bag_01a",
+        job = "police",
+        prop = {
+            model = "bkr_prop_duffel_bag_01a",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "weapon_colbaton", amount = 1 },
             { givenItem = "WEAPON_GLOCK17", amount = 1 },
@@ -82,7 +114,13 @@ Config.ItemsToConvert = {
     },
     {
         usedItem = "emsstarterbox",
-        prop = "xm_prop_x17_bag_med_01a",
+        job = "ems",
+        prop = {
+            model = "xm_prop_x17_bag_med_01a",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "medbag", amount = 1 },
             { givenItem = "defib", amount = 20 },
@@ -98,21 +136,36 @@ Config.ItemsToConvert = {
     --------------
     {
         usedItem = "redwoodcigs",
-        prop = "v_ret_ml_cigs",
+        prop = {
+            model = "v_ret_ml_cigs",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "cigarette", amount = 20 }
         }
     },
     {
         usedItem = "cardiaquecigs",
-        prop = "v_ret_ml_cigs5",
+        prop = {
+            model = "v_ret_ml_cigs5",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "cigarette", amount = 20 }
         }
     },
     {
         usedItem = "debonairecigs",
-        prop = "v_ret_ml_cigs3",
+        prop = {
+            model = "v_ret_ml_cigs3",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "cigarette", amount = 20 }
         }
@@ -123,7 +176,12 @@ Config.ItemsToConvert = {
     --------------
     {
         usedItem = "markedbills",
-        prop = "prop_money_bag_01",
+        prop = {
+            model = "prop_money_bag_01",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "black_money", amount = {8000,12000} }
         }
@@ -131,7 +189,12 @@ Config.ItemsToConvert = {
 
     {
         usedItem = "markedbills2",
-        prop = "prop_money_bag_01",
+        prop = {
+            model = "prop_money_bag_01",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             { givenItem = "black_money", amount = {20000,25000} }
         }
@@ -141,7 +204,12 @@ Config.ItemsToConvert = {
     ------------
     {
         usedItem = "giftbox",
-        prop = "xm3_prop_xm3_present_01a",
+        prop = {
+            model = "xm3_prop_xm3_present_01a",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             random = true,
             items = 3,
@@ -184,7 +252,12 @@ Config.ItemsToConvert = {
     },
     {
         usedItem = "fishshoe",
-        prop = "prop_old_boot",
+        prop = {
+            model = "prop_old_boot",
+            bone = 60309,
+            propPlacement = { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 },
+            animation = { dict = 'mp_arresting', anim = 'a_uncuff', flags = 1 },
+        },
         givenItems = {
             random = true,
             items = 3,
