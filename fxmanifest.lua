@@ -4,12 +4,7 @@ version '1.0.0'
 games { 'gta5' }
 
 dependencies {
-    'ox_lib',
-}
-
-files {
-    'bridge/framework.lua',
-    'bridge/inventory.lua',
+    'community_bridge',
 }
 
 client_scripts {
@@ -21,6 +16,5 @@ server_scripts {
 }
 
 shared_scripts {
-    '@ox_lib/init',
     'config.lua',
 }

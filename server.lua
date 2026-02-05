@@ -1,27 +1,36 @@
--- Bridge Loader
-local function loadBridge(file)
-    local code = LoadResourceFile(GetCurrentResourceName(), 'bridge/' .. file)
-    if not code then
-        error('Failed to load bridge/' .. file)
-        return nil
-    end
-    return load(code)()
+local Bridge = exports.community_bridge:Bridge()
+local Framework = Bridge.Framework
+local Inventory = Bridge.Inventory
+local Notify = Bridge.Notify
+
+if not Framework or not Inventory then
+    error('[OPENABLES] community_bridge is not ready or missing required modules.')
+    return
 end
-
--- Initialize Bridges
-local Framework = loadBridge('framework.lua')
-Framework:init()
-
-local Inventory = loadBridge('inventory.lua')
-Inventory:init(Framework)
 
 -- Player cooldown tracking
 local PlayerCooldowns = {}
 
 -- Utility function for logging
+local function GetPlayerName(source)
+    local first, last = Framework.GetPlayerName(source)
+    if first and last then
+        return first .. " " .. last
+    end
+    return first or last or ("Player " .. tostring(source))
+end
+
+local function SendNotify(source, message, _type, time)
+    if Notify and Notify.SendNotify then
+        Notify.SendNotify(source, message, _type, time)
+    else
+        print("^3[OPENABLES]^0 Notify fallback: " .. message)
+    end
+end
+
 local function LogAction(source, action, item, result)
     if not Config.EnableLogging then return end
-    local playerName = Framework:getPlayerName(source)
+    local playerName = GetPlayerName(source)
     print("^2[OPENABLES]^0 Player: ^3" .. playerName .. "^0 | Source: ^3" .. source .. "^0 | Action: ^3" .. action .. "^0 | Item: ^3" .. item .. "^0 | Result: ^3" .. result .. "^0")
 end
 
@@ -33,11 +42,36 @@ local function ValidateItem(itemName)
 end
 
 -- Check if player has inventory space
-local function HasInventorySpace(source, requiredSlots)
+local InventoryResources = {
+    'ox_inventory',
+    'qb-inventory',
+    'ps-inventory',
+    'qs-inventory',
+    'tgiann-inventory',
+    'jpr-inventory',
+    'codem-inventory',
+    'core_inventory',
+    'origen_inventory',
+}
+
+local function IsInventoryModuleActive()
+    for _, resourceName in ipairs(InventoryResources) do
+        if GetResourceState(resourceName) == 'started' then
+            return true
+        end
+    end
+    return false
+end
+
+local function CanCarryItem(source, itemName, amount)
     if not Config.CheckInventorySpace then return true end
-    -- Try to add and immediately remove to test space
-    local canCarry = Inventory:canCarryItem(source, 'cash', 1)
-    return canCarry
+    if not Inventory.CanCarryItem then return true end
+    if not IsInventoryModuleActive() then return true end
+    local ok, result = pcall(Inventory.CanCarryItem, source, itemName, amount)
+    if not ok or result == nil then
+        return true
+    end
+    return result
 end
 
 -- Check player cooldown
@@ -55,8 +89,8 @@ end
 local function CheckJobWhitelist(source, conversion)
     if not Config.JobWhitelistEnabled then return true end
     if not conversion.job then return true end -- No job restriction = everyone can use
-    
-    local playerJob = Framework:getPlayerJob(source)
+
+    local playerJob = Framework.GetPlayerJob(source)
     return playerJob == conversion.job
 end
 
@@ -89,58 +123,12 @@ local function PreCalculateRandomPools()
     end
 end
 
-for _, conversion in pairs(Config.ItemsToConvert) do
-    if Framework.type == 'qb' or Framework.type == 'qbox' then
-        -- QB-Core and QBox use CreateUseableItem
-        local QBCore = Framework._instance
-        QBCore.Functions.CreateUseableItem(conversion.usedItem, function(source, item)
-            HandleItemUse(source, item, conversion)
-        end)
-    elseif Framework.type == 'esx' then
-        -- ESX uses item callbacks
-        TriggerEvent('esx:registerUsableItem', conversion.usedItem, function(source)
-            HandleItemUse(source, {name = conversion.usedItem}, conversion)
-        end)
-    end
-end
-
-function HandleItemUse(source, item, conversion)
-    -- Check rate limit
-    if not CheckCooldown(source) then
-        Framework:notify(source, "Error", "You are using items too quickly!", "error")
-        LogAction(source, "BLOCKED", item.name, "Rate limit exceeded")
-        return
-    end
-
-    -- Check job whitelist
-    if not CheckJobWhitelist(source, conversion) then
-        Framework:notify(source, "Error", "You don't have permission to use this item.", "error")
-        LogAction(source, "BLOCKED", item.name, "Job whitelist check failed")
-        return
-    end
-
-    -- Check item in inventory
-    local itemCount = Inventory:getItemCount(source, item.name)
-    if itemCount < 1 then
-        LogAction(source, "FAILED", item.name, "Item not found in inventory")
-        return
-    end
-
-    -- Remove item from inventory
-    Inventory:removeItem(source, item.name, 1)
-
-    -- Get item's display label for progress bar
-    local itemLabel = item.label or item.name
-    
-    -- Trigger client animation (pass item label for progress bar label)
-    TriggerClientEvent('lb-openables:client:ProgressBar', source, conversion.prop.model, conversion.prop.animation.dict, conversion.prop.animation.anim, conversion.prop.animation.flags, conversion.prop.bone, conversion.prop.propPlacement, itemLabel)
-
-    Wait(5000)
-
-    -- Process given items
+local function BuildRewards(conversion, conversionIndex)
+    local rewards = {}
     local itemsConfig = conversion.givenItems
+
     if type(itemsConfig) == "table" and itemsConfig.random then
-        local pool = PreCalculatedPools[_] or {}
+        local pool = PreCalculatedPools[conversionIndex] or {}
         if #pool == 0 then
             -- Fallback if pre-calculation failed
             for _, itemData in ipairs(itemsConfig) do
@@ -167,23 +155,9 @@ function HandleItemUse(source, item, conversion)
 
         for i = 1, count do
             local givenItemData = pool[i]
-            if givenItemData then
-                -- Validate item before adding
-                if not ValidateItem(givenItemData.givenItem) then
-                    goto continue
-                end
-                
+            if givenItemData and ValidateItem(givenItemData.givenItem) then
                 local amount = type(givenItemData.amount) == "table" and math.random(givenItemData.amount[1], givenItemData.amount[2]) or givenItemData.amount
-                local success = Inventory:addItem(source, givenItemData.givenItem, amount)
-                
-                if success then
-                    LogAction(source, "ADDED", givenItemData.givenItem, "Success")
-                else
-                    LogAction(source, "FAILED", givenItemData.givenItem, "Inventory full")
-                    Framework:notify(source, "Error", "Inventory full! Could not receive all items.", "error")
-                end
-                
-                ::continue::
+                rewards[#rewards + 1] = { item = givenItemData.givenItem, amount = amount }
             end
         end
     else
@@ -194,27 +168,88 @@ function HandleItemUse(source, item, conversion)
             end
             chance = math.max(0, math.min(chance, 100))
             if math.random(100) <= chance then
-                -- Validate item before adding
-                if not ValidateItem(givenItemData.givenItem) then
-                    goto skip_item
+                if ValidateItem(givenItemData.givenItem) then
+                    local amount = type(givenItemData.amount) == "table" and math.random(givenItemData.amount[1], givenItemData.amount[2]) or givenItemData.amount
+                    rewards[#rewards + 1] = { item = givenItemData.givenItem, amount = amount }
                 end
-                
-                local amount = type(givenItemData.amount) == "table" and math.random(givenItemData.amount[1], givenItemData.amount[2]) or givenItemData.amount
-                local success = Inventory:addItem(source, givenItemData.givenItem, amount)
-                
-                if success then
-                    LogAction(source, "ADDED", givenItemData.givenItem, "Success")
-                else
-                    LogAction(source, "FAILED", givenItemData.givenItem, "Inventory full")
-                    Framework:notify(source, "Error", "Inventory full! Could not receive all items.", "error")
-                end
-                
-                ::skip_item::
             end
+        end
+    end
+
+    return rewards
+end
+
+local function CanReceiveRewards(source, rewards)
+    for _, reward in ipairs(rewards) do
+        if not CanCarryItem(source, reward.item, reward.amount) then
+            return false, reward.item
+        end
+    end
+    return true
+end
+
+local function HandleItemUse(source, item, conversion, conversionIndex)
+    -- Check rate limit
+    if not CheckCooldown(source) then
+        SendNotify(source, "You are using items too quickly!", "error", 5000)
+        LogAction(source, "BLOCKED", item.name, "Rate limit exceeded")
+        return
+    end
+
+    -- Check job whitelist
+    if not CheckJobWhitelist(source, conversion) then
+        SendNotify(source, "You don't have permission to use this item.", "error", 5000)
+        LogAction(source, "BLOCKED", item.name, "Job whitelist check failed")
+        return
+    end
+
+    -- Check item in inventory
+    local itemCount = Inventory.GetItemCount(source, item.name)
+    if itemCount < 1 then
+        LogAction(source, "FAILED", item.name, "Item not found in inventory")
+        return
+    end
+
+    -- Build rewards and check inventory space before consuming the item
+    local rewards = BuildRewards(conversion, conversionIndex)
+    local canReceive, blockedItem = CanReceiveRewards(source, rewards)
+    if not canReceive then
+        LogAction(source, "FAILED", item.name, "Inventory full")
+        SendNotify(source, "Inventory full! Open space before using this item.", "error", 5000)
+        return
+    end
+
+    -- Remove item from inventory
+    Inventory.RemoveItem(source, item.name, 1)
+
+    -- Get item's display label for progress bar
+    local itemLabel = item.label or item.name
+    
+    -- Trigger client animation (pass item label for progress bar label)
+    TriggerClientEvent('lb-openables:client:ProgressBar', source, conversion.prop.model, conversion.prop.animation.dict, conversion.prop.animation.anim, conversion.prop.animation.flags, conversion.prop.bone, conversion.prop.propPlacement, itemLabel)
+
+    Wait(5000)
+
+    -- Process given items
+    for _, reward in ipairs(rewards) do
+        local success = Inventory.AddItem(source, reward.item, reward.amount)
+        if success then
+            LogAction(source, "ADDED", reward.item, "Success")
+        else
+            LogAction(source, "FAILED", reward.item, "Inventory full")
+            SendNotify(source, "Inventory full! Could not receive all items.", "error", 5000)
         end
     end
     
     LogAction(source, "COMPLETED", item.name, "Item conversion finished")
+end
+
+for idx, conversion in pairs(Config.ItemsToConvert) do
+    Framework.RegisterUsableItem(conversion.usedItem, function(source, itemData)
+        itemData = itemData or { name = conversion.usedItem }
+        itemData.name = itemData.name or conversion.usedItem
+        HandleItemUse(source, itemData, conversion, idx)
+    end)
 end
 
 -- Validate config on startup

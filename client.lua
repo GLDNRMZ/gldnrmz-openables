@@ -1,4 +1,5 @@
-local lib = exports.ox_lib
+local Bridge = exports.community_bridge:Bridge()
+local ProgressBar = Bridge.ProgressBar
 
 RegisterNetEvent('lb-openables:client:ProgressBar')
 AddEventHandler('lb-openables:client:ProgressBar', function(propModel, animDict, animName, animFlags, boneId, propPlacement, itemName)
@@ -73,10 +74,9 @@ AddEventHandler('lb-openables:client:ProgressBar', function(propModel, animDict,
     TaskPlayAnim(playerPed, animDict, animName, 8.0, 8.0, 5000, animFlags, 0, false, false, false)
     RemoveAnimDict(animDict)
     
-    -- Show progress bar
-    if GetResourceState('ox_lib') == 'started' then
-        local startTime = GetGameTimer()
-        exports['ox_lib']:progressBar({
+    -- Show progress bar (community_bridge)
+    if ProgressBar and ProgressBar.Open then
+        ProgressBar.Open({
             duration = 5000,
             label = 'Opening ' .. itemName .. '...',
             useWhileDead = false,
