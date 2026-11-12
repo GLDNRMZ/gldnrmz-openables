@@ -1,98 +1,18 @@
-local Bridge = exports.community_bridge:Bridge()
-local ProgressBar = Bridge.ProgressBar
+-- The server asks for the opening animation; the answer (finished or
+-- cancelled) decides whether the item is consumed.
+lib.callback.register('gldnrmz-openables:open', function(itemName, label)
+    local openable = Config.Openables[itemName]
+    if not openable then return false end
 
-RegisterNetEvent('lb-openables:client:ProgressBar')
-AddEventHandler('lb-openables:client:ProgressBar', function(propModel, animDict, animName, animFlags, boneId, propPlacement, itemName)
-    local playerPed = PlayerPedId()
-    local playerCoords = GetEntityCoords(playerPed)
-    local prop = nil
+    local prop = openable.prop
 
-    -- Use defaults if not provided
-    animDict = animDict or 'mp_arresting'
-    animName = animName or 'a_uncuff'
-    animFlags = animFlags or 1
-    boneId = boneId or 60309
-    propPlacement = propPlacement or { x = 0.1, y = 0.0, z = 0.0, rotX = -90.0, rotY = 90.0, rotZ = 0.0 }
-    itemName = itemName or 'Item'
-
-    local model = GetHashKey(propModel)
-    
-    -- Validate model hash
-    if model == 0 then
-        if Config.Debug then
-            print("^1[OPENABLES]^0 Invalid prop model: " .. propModel)
-        end
-        return
-    end
-    
-    -- Load model
-    RequestModel(model)
-    local modelTimeout = GetGameTimer() + 5000
-    while not HasModelLoaded(model) do
-        if GetGameTimer() > modelTimeout then
-            if Config.Debug then
-                print("^1[OPENABLES]^0 Failed to load prop model: " .. propModel)
-            end
-            return
-        end
-        Wait(10)
-    end
-
-    -- Create prop object
-    prop = CreateObject(model, playerCoords.x, playerCoords.y, playerCoords.z, true, true, true)
-    
-    if not DoesEntityExist(prop) then
-        if Config.Debug then
-            print("^1[OPENABLES]^0 Failed to create prop object")
-        end
-        return
-    end
-    
-    -- Attach prop to player bone
-    AttachEntityToEntity(prop, playerPed, GetPedBoneIndex(playerPed, boneId), 
-        propPlacement.x, propPlacement.y, propPlacement.z, 
-        propPlacement.rotX, propPlacement.rotY, propPlacement.rotZ, 
-        true, true, false, true, 1, true)
-
-    -- Request animation dict
-    RequestAnimDict(animDict)
-    local animTimeout = GetGameTimer() + 5000
-    while not HasAnimDictLoaded(animDict) do
-        if GetGameTimer() > animTimeout then
-            if Config.Debug then
-                print("^1[OPENABLES]^0 Failed to load animation dict: " .. animDict)
-            end
-            if DoesEntityExist(prop) then
-                DeleteEntity(prop)
-            end
-            return
-        end
-        Wait(10)
-    end
-    
-    -- Play animation
-    TaskPlayAnim(playerPed, animDict, animName, 8.0, 8.0, 5000, animFlags, 0, false, false, false)
-    RemoveAnimDict(animDict)
-    
-    -- Show progress bar (community_bridge)
-    if ProgressBar and ProgressBar.Open then
-        ProgressBar.Open({
-            duration = 5000,
-            label = 'Opening ' .. itemName .. '...',
-            useWhileDead = false,
-            canCancel = true,
-            disable = {
-                car = false,
-                move = true,
-                combat = true,
-            },
-        })
-    end
-    
-    -- Clean up - stop animation and delete prop
-    ClearPedTasks(playerPed)
-    if DoesEntityExist(prop) then
-        DetachEntity(prop, true, false)
-        DeleteEntity(prop)
-    end
+    return lib.progressBar({
+        duration = openable.duration or Config.Defaults.duration,
+        label = Config.Defaults.label:format(label),
+        useWhileDead = false,
+        canCancel = true,
+        disable = { move = true, combat = true, car = false },
+        anim = { dict = openable.anim.dict, clip = openable.anim.clip, flag = openable.anim.flag },
+        prop = prop.model and { model = prop.model, bone = prop.bone, pos = prop.pos, rot = prop.rot } or nil,
+    })
 end)

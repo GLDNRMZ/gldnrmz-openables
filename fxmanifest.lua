@@ -1,20 +1,23 @@
 fx_version 'cerulean'
-version '1.0.0'
---lua54 'yes'
-games { 'gta5' }
+game 'gta5'
+lua54 'yes'
+use_experimental_fxv2_oal 'yes'
 
-dependencies {
-    'community_bridge',
-}
-
-client_scripts {
-    'client.lua',
-}
-
-server_scripts {
-    'server.lua',
-}
+author 'gldnrmz'
+description 'Openable items: use one item to receive rewards (Qbox / ox)'
+version '2.0.0'
 
 shared_scripts {
+    '@ox_lib/init.lua',
     'config.lua',
+    'shared.lua',
+}
+
+client_script 'client.lua'
+server_script 'server.lua'
+
+dependencies {
+    'ox_lib',
+    'ox_inventory',
+    'qbx_core',
 }

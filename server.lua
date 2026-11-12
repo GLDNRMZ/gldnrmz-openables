@@ -1,320 +1,232 @@
-local Bridge = exports.community_bridge:Bridge()
-local Framework = Bridge.Framework
-local Inventory = Bridge.Inventory
-local Notify = Bridge.Notify
+local Inventory = exports.ox_inventory
+local resourceName = GetCurrentResourceName()
 
-if not Framework or not Inventory then
-    error('[OPENABLES] community_bridge is not ready or missing required modules.')
-    return
+local busy = {}     -- [source] = true while a player is opening something
+local lastOpen = {} -- [source] = GetGameTimer() of their last open
+local itemDefs = {} -- [configured name] = ox_inventory item definition (valid rewards only)
+
+local function notify(source, description, notifyType)
+    TriggerClientEvent('ox_lib:notify', source, { title = 'Openables', description = description, type = notifyType or 'error' })
 end
 
--- Player cooldown tracking
-local PlayerCooldowns = {}
-
--- Utility function for logging
-local function GetPlayerName(source)
-    local first, last = Framework.GetPlayerName(source)
-    if first and last then
-        return first .. " " .. last
-    end
-    return first or last or ("Player " .. tostring(source))
+local function log(source, message, ...)
+    if Config.Debug then lib.print.info(('[%s] %s'):format(source, message)) end
+    if Config.Logging then lib.logger(source, 'openables', message, ...) end
 end
 
-local function SendNotify(source, message, _type, time)
-    if Notify and Notify.SendNotify then
-        Notify.SendNotify(source, message, _type, time)
-    else
-        print("^3[OPENABLES]^0 Notify fallback: " .. message)
-    end
+---------------------
+-- Reward rolling  --
+---------------------
+
+-- chance is a percent (1-100). Values between 0 and 1 are read as fractions (0.25 = 25%).
+local function rollChance(chance)
+    chance = chance or 100
+    if chance > 0 and chance < 1 then chance = chance * 100 end
+    return math.random() * 100 < chance
 end
 
-local function LogAction(source, action, item, result)
-    if not Config.EnableLogging then return end
-    local playerName = GetPlayerName(source)
-    print("^2[OPENABLES]^0 Player: ^3" .. playerName .. "^0 | Source: ^3" .. source .. "^0 | Action: ^3" .. action .. "^0 | Item: ^3" .. item .. "^0 | Result: ^3" .. result .. "^0")
+local function rollAmount(amount)
+    if type(amount) == 'table' then return math.random(amount[1], amount[2]) end
+    return amount or 1
 end
 
--- Validate item exists (just trust the config, no need to check player inventory during validation)
-local function ValidateItem(itemName)
-    if not Config.CheckItemExists then return true end
-    -- For now, trust that items in config exist. Additional validation could check framework item definitions
-    return itemName ~= nil and itemName ~= ""
-end
+--- Rolls a fresh set of rewards for one open.
+---@return { name: string, count: integer, weight: number }[]
+local function rollRewards(rewards)
+    local pool = {}
 
--- Check if player has inventory space
-local InventoryResources = {
-    'ox_inventory',
-    'qb-inventory',
-    'ps-inventory',
-    'qs-inventory',
-    'tgiann-inventory',
-    'jpr-inventory',
-    'codem-inventory',
-    'core_inventory',
-    'origen_inventory',
-}
-
-local function IsInventoryModuleActive()
-    for _, resourceName in ipairs(InventoryResources) do
-        if GetResourceState(resourceName) == 'started' then
-            return true
+    for i = 1, #rewards do
+        local entry = rewards[i]
+        if itemDefs[entry.item] and rollChance(entry.chance) then
+            pool[#pool + 1] = entry
         end
     end
-    return false
-end
 
-local function CanCarryItem(source, itemName, amount)
-    if not Config.CheckInventorySpace then return true end
-    if not Inventory.CanCarryItem then return true end
-    if not IsInventoryModuleActive() then return true end
-    local ok, result = pcall(Inventory.CanCarryItem, source, itemName, amount)
-    if not ok or result == nil then
-        return true
+    -- "pick" mode: keep a random subset of whatever passed its chance roll
+    if rewards.pick then
+        local count = math.min(rewards.pick, #pool)
+        for i = 1, count do
+            local j = math.random(i, #pool)
+            pool[i], pool[j] = pool[j], pool[i]
+        end
+        for i = #pool, count + 1, -1 do pool[i] = nil end
     end
+
+    -- Merge duplicates (e.g. two money rolls) into one add
+    local result, byName = {}, {}
+    for i = 1, #pool do
+        local def = itemDefs[pool[i].item]
+        local name = def.name
+        local amount = rollAmount(pool[i].amount)
+
+        if byName[name] then
+            byName[name].count += amount
+        else
+            byName[name] = { name = name, count = amount, weight = def.weight or 0 }
+            result[#result + 1] = byName[name]
+        end
+    end
+
     return result
 end
 
--- Check player cooldown
-local function CheckCooldown(source)
-    if not Config.EnableRateLimit then return true end
-    local now = GetGameTimer()
-    if PlayerCooldowns[source] and (now - PlayerCooldowns[source]) < Config.GlobalCooldown then
-        return false
+local function canCarry(source, rewards, freedWeight)
+    if not Config.CheckInventorySpace then return true end
+
+    local weight = 0
+    for i = 1, #rewards do
+        local reward = rewards[i]
+        if not Inventory:CanCarryItem(source, reward.name, reward.count) then return false end
+        weight += reward.weight * reward.count
     end
-    PlayerCooldowns[source] = now
-    return true
+
+    return Inventory:CanCarryWeight(source, weight - freedWeight)
 end
 
--- Check job whitelist
-local function CheckJobWhitelist(source, conversion)
-    if not Config.JobWhitelistEnabled then return true end
-    if not conversion.job then return true end -- No job restriction = everyone can use
+local function giveRewards(source, rewards)
+    local leftovers = {}
 
-    local playerJob = Framework.GetPlayerJob(source)
-    return playerJob == conversion.job
-end
-
--- Pre-load prop models (client-side, triggered when client is ready)
-local function PreLoadPropModels()
-    if not Config.PreLoadModels then return end
-    -- Model preloading happens on client-side in progress bar handler
-    print("^2[OPENABLES]^0 Prop models will be loaded on client demand")
-end
-
--- Calculate random item pools once on startup
-local PreCalculatedPools = {}
-local function PreCalculateRandomPools()
-    for idx, conversion in pairs(Config.ItemsToConvert) do
-        local itemsConfig = conversion.givenItems
-        if type(itemsConfig) == "table" and itemsConfig.random then
-            local pool = {}
-            for _, itemData in ipairs(itemsConfig) do
-                local chance = itemData.chance ~= nil and itemData.chance or 100
-                if chance > 0 and chance < 1 then
-                    chance = chance * 100
-                end
-                chance = math.max(0, math.min(chance, 100))
-                if math.random(100) <= chance then
-                    pool[#pool + 1] = itemData
-                end
-            end
-            PreCalculatedPools[idx] = pool
-        end
-    end
-end
-
-local function BuildRewards(conversion, conversionIndex)
-    local rewards = {}
-    local itemsConfig = conversion.givenItems
-
-    if type(itemsConfig) == "table" and itemsConfig.random then
-        local pool = PreCalculatedPools[conversionIndex] or {}
-        if #pool == 0 then
-            -- Fallback if pre-calculation failed
-            for _, itemData in ipairs(itemsConfig) do
-                local chance = itemData.chance ~= nil and itemData.chance or 100
-                if chance > 0 and chance < 1 then
-                    chance = chance * 100
-                end
-                chance = math.max(0, math.min(chance, 100))
-                if math.random(100) <= chance then
-                    pool[#pool + 1] = itemData
-                end
-            end
-        end
-
-        local count = tonumber(itemsConfig.items) or 1
-        if count > #pool then
-            count = #pool
-        end
-
-        for i = #pool, 2, -1 do
-            local j = math.random(1, i)
-            pool[i], pool[j] = pool[j], pool[i]
-        end
-
-        for i = 1, count do
-            local givenItemData = pool[i]
-            if givenItemData and ValidateItem(givenItemData.givenItem) then
-                local amount = type(givenItemData.amount) == "table" and math.random(givenItemData.amount[1], givenItemData.amount[2]) or givenItemData.amount
-                rewards[#rewards + 1] = { item = givenItemData.givenItem, amount = amount }
-            end
-        end
-    else
-        for _, givenItemData in ipairs(itemsConfig) do
-            local chance = givenItemData.chance ~= nil and givenItemData.chance or 100
-            if chance > 0 and chance < 1 then
-                chance = chance * 100
-            end
-            chance = math.max(0, math.min(chance, 100))
-            if math.random(100) <= chance then
-                if ValidateItem(givenItemData.givenItem) then
-                    local amount = type(givenItemData.amount) == "table" and math.random(givenItemData.amount[1], givenItemData.amount[2]) or givenItemData.amount
-                    rewards[#rewards + 1] = { item = givenItemData.givenItem, amount = amount }
-                end
-            end
-        end
-    end
-
-    return rewards
-end
-
-local function CanReceiveRewards(source, rewards)
-    for _, reward in ipairs(rewards) do
-        if not CanCarryItem(source, reward.item, reward.amount) then
-            return false, reward.item
-        end
-    end
-    return true
-end
-
-local function HandleItemUse(source, item, conversion, conversionIndex)
-    -- Check rate limit
-    if not CheckCooldown(source) then
-        SendNotify(source, "You are using items too quickly!", "error", 5000)
-        LogAction(source, "BLOCKED", item.name, "Rate limit exceeded")
-        return
-    end
-
-    -- Check job whitelist
-    if not CheckJobWhitelist(source, conversion) then
-        SendNotify(source, "You don't have permission to use this item.", "error", 5000)
-        LogAction(source, "BLOCKED", item.name, "Job whitelist check failed")
-        return
-    end
-
-    -- Check item in inventory
-    local itemCount = Inventory.GetItemCount(source, item.name)
-    if itemCount < 1 then
-        LogAction(source, "FAILED", item.name, "Item not found in inventory")
-        return
-    end
-
-    -- Build rewards and check inventory space before consuming the item
-    local rewards = BuildRewards(conversion, conversionIndex)
-    local canReceive, blockedItem = CanReceiveRewards(source, rewards)
-    if not canReceive then
-        LogAction(source, "FAILED", item.name, "Inventory full")
-        SendNotify(source, "Inventory full! Open space before using this item.", "error", 5000)
-        return
-    end
-
-    -- Remove item from inventory
-    Inventory.RemoveItem(source, item.name, 1)
-
-    -- Get item's display label for progress bar
-    local itemLabel = item.label or item.name
-    
-    -- Trigger client animation (pass item label for progress bar label)
-    TriggerClientEvent('lb-openables:client:ProgressBar', source, conversion.prop.model, conversion.prop.animation.dict, conversion.prop.animation.anim, conversion.prop.animation.flags, conversion.prop.bone, conversion.prop.propPlacement, itemLabel)
-
-    Wait(5000)
-
-    -- Process given items
-    for _, reward in ipairs(rewards) do
-        local success = Inventory.AddItem(source, reward.item, reward.amount)
-        if success then
-            LogAction(source, "ADDED", reward.item, "Success")
+    for i = 1, #rewards do
+        local reward = rewards[i]
+        if Inventory:AddItem(source, reward.name, reward.count) then
+            log(source, ('received %dx %s'):format(reward.count, reward.name), 'item:' .. reward.name)
         else
-            LogAction(source, "FAILED", reward.item, "Inventory full")
-            SendNotify(source, "Inventory full! Could not receive all items.", "error", 5000)
+            leftovers[#leftovers + 1] = { reward.name, reward.count }
         end
     end
-    
-    LogAction(source, "COMPLETED", item.name, "Item conversion finished")
+
+    -- Never lose rewards: anything that would not fit goes on the ground
+    if #leftovers > 0 then
+        local ped = GetPlayerPed(source)
+        Inventory:CustomDrop('Openable', leftovers, GetEntityCoords(ped), nil, nil, GetPlayerRoutingBucket(source))
+        notify(source, 'Some items did not fit and were dropped at your feet.', 'inform')
+        log(source, ('dropped %d reward(s) on the ground'):format(#leftovers))
+    end
 end
 
-for idx, conversion in pairs(Config.ItemsToConvert) do
-    Framework.RegisterUsableItem(conversion.usedItem, function(source, itemData)
-        itemData = itemData or { name = conversion.usedItem }
-        itemData.name = itemData.name or conversion.usedItem
-        HandleItemUse(source, itemData, conversion, idx)
+-------------
+-- Opening --
+-------------
+
+local function open(source, itemName, slot)
+    local openable = Config.Openables[itemName]
+    local now = GetGameTimer()
+
+    if busy[source] then return end
+
+    if lastOpen[source] and now - lastOpen[source] < Config.Cooldown then
+        return notify(source, 'You are opening items too quickly.')
+    end
+
+    if openable.job and not exports.qbx_core:HasGroup(source, openable.job) then
+        return notify(source, "You don't have permission to open this.")
+    end
+
+    local slotData = Inventory:GetSlot(source, slot.slot)
+    if not slotData or slotData.name ~= itemName then return end
+
+    local rewards = rollRewards(openable.rewards)
+    local unitWeight = (slotData.weight or 0) / math.max(slotData.count or 1, 1)
+
+    if not canCarry(source, rewards, unitWeight) then
+        return notify(source, 'Your inventory is too full to open this.')
+    end
+
+    busy[source] = true
+    lastOpen[source] = now
+
+    local label = slotData.metadata?.label or slot.label or itemName
+    local finished = lib.callback.await('gldnrmz-openables:open', source, itemName, label)
+    local elapsed = GetGameTimer() - now
+
+    if not busy[source] then return end -- player left mid-open
+    busy[source] = nil
+
+    if not finished then return end
+
+    -- The client reports success; make sure it actually waited the full duration
+    if elapsed < openable.duration * 0.9 then
+        lib.print.warn(('player %s finished opening %s in %dms (expected %dms)'):format(source, itemName, elapsed, openable.duration))
+        log(source, ('skipped progress bar on %s'):format(itemName), 'exploit')
+        return
+    end
+
+    -- Consume from the exact slot used. Fails if the item moved or was dropped meanwhile.
+    if not Inventory:RemoveItem(source, itemName, 1, nil, slot.slot) then
+        return notify(source, 'The item is no longer in your inventory.')
+    end
+
+    log(source, ('opened %s'):format(itemName), 'item:' .. itemName)
+
+    if #rewards == 0 then
+        return notify(source, 'It was empty.', 'inform')
+    end
+
+    giveRewards(source, rewards)
+end
+
+-------------
+-- Startup --
+-------------
+
+local function validateRewards()
+    local missing = {}
+
+    for openableName, openable in pairs(Config.Openables) do
+        if not Inventory:Items(openableName) then
+            missing[#missing + 1] = ('%s (the openable itself)'):format(openableName)
+        end
+
+        for i = 1, #openable.rewards do
+            local name = openable.rewards[i].item
+            local def = Inventory:Items(name)
+
+            if def then
+                itemDefs[name] = def
+            elseif not itemDefs[name] then
+                itemDefs[name] = false
+                missing[#missing + 1] = ('%s (reward in %s)'):format(name, openableName)
+            end
+        end
+    end
+
+    for i = 1, #missing do
+        lib.print.warn(('item "%s" is not registered in ox_inventory and will be skipped'):format(missing[i]))
+    end
+end
+
+local function parseVersion(version)
+    local major, minor, patch = (version or ''):match('(%d+)%.(%d+)%.(%d+)')
+    return (tonumber(major) or 0) * 1e6 + (tonumber(minor) or 0) * 1e3 + (tonumber(patch) or 0)
+end
+
+local function checkVersion()
+    local url = ('https://raw.githubusercontent.com/GLDNRMZ/%s/main/version.txt'):format(resourceName)
+
+    PerformHttpRequest(url, function(status, body)
+        if status ~= 200 or not body then return end
+
+        local latest = body:gsub('%s', '')
+        local current = GetResourceMetadata(resourceName, 'version', 0)
+
+        if parseVersion(latest) > parseVersion(current) then
+            lib.print.warn(('update available: %s (running %s)'):format(latest, current))
+        end
+    end, 'GET')
+end
+
+validateRewards()
+
+for itemName in pairs(Config.Openables) do
+    exports.qbx_core:CreateUseableItem(itemName, function(source, slot)
+        -- Run outside ox_inventory's useItem callback so it is not held open for the whole animation
+        CreateThread(function() open(source, itemName, slot) end)
     end)
 end
 
--- Validate config on startup
-local function ValidateConfig()
-    print("^3[OPENABLES]^0 Validating configuration...")
-    local errorCount = 0
-    
-    if not Config.ItemsToConvert or type(Config.ItemsToConvert) ~= "table" then
-        print("^1[OPENABLES ERROR]^0 Config.ItemsToConvert is missing or invalid!")
-        return false
-    end
-    
-    for idx, conversion in pairs(Config.ItemsToConvert) do
-        if not conversion.usedItem or not conversion.prop then
-            print("^1[OPENABLES ERROR]^0 Conversion #" .. idx .. " missing usedItem or prop!")
-            errorCount = errorCount + 1
-        end
-        
-        if not conversion.givenItems or type(conversion.givenItems) ~= "table" then
-            print("^1[OPENABLES ERROR]^0 Conversion #" .. idx .. " (" .. (conversion.usedItem or "unknown") .. ") has invalid givenItems!")
-            errorCount = errorCount + 1
-        end
-    end
-    
-    if errorCount == 0 then
-        print("^2[OPENABLES]^0 Configuration validated successfully! (" .. #Config.ItemsToConvert .. " conversions found)")
-        return true
-    else
-        print("^1[OPENABLES]^0 Configuration validation found " .. errorCount .. " error(s)")
-        return false
-    end
-end
-
-local function CheckVersion()
-    -- Run version check asynchronously
-    SetTimeout(100, function()
-        PerformHttpRequest('https://raw.githubusercontent.com/GLDNRMZ/'..GetCurrentResourceName()..'/main/version.txt', function(errorCode, resultText, resultHeaders)
-            if errorCode ~= 200 or not resultText then
-                print('^3[OPENABLES]^0 Version check skipped (unable to fetch)')
-                return
-            end
-            
-            local currentVersion = GetResourceMetadata(GetCurrentResourceName(), 'version')
-            local result = resultText:gsub("\r", ""):gsub("\n", "")
-            
-            if result ~= currentVersion then
-                print('^1[OPENABLES]^0 '..GetCurrentResourceName()..' is out of date! Latest: '..result..' | Current: '..currentVersion)
-            else
-                print('^2[OPENABLES]^0 '..GetCurrentResourceName()..' is up to date! ('..currentVersion..')')
-            end
-        end, 'GET')
-    end)
-end
-
--- Cleanup function for player disconnects
 AddEventHandler('playerDropped', function()
-    local source = source
-    PlayerCooldowns[source] = nil
+    busy[source] = nil
+    lastOpen[source] = nil
 end)
 
--- Startup
-Citizen.CreateThread(function()
-    Wait(500) -- Wait for config to load
-    ValidateConfig()
-    PreLoadPropModels()
-    PreCalculateRandomPools()
-    CheckVersion()
-end)
+if Config.VersionCheck then checkVersion() end
