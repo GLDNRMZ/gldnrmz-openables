@@ -1,9 +1,11 @@
-local Inventory = exports.ox_inventory
+local Framework = exports.community_bridge:Framework()
+local Inventory = exports.community_bridge:Inventory()
+local hasOx = GetResourceState('ox_inventory') ~= 'missing'
 local resourceName = GetCurrentResourceName()
 
 local busy = {}     -- [source] = true while a player is opening something
 local lastOpen = {} -- [source] = GetGameTimer() of their last open
-local itemDefs = {} -- [configured name] = ox_inventory item definition (valid rewards only)
+local itemDefs = {} -- [configured name] = item definition from the inventory (valid rewards only)
 
 local function notify(source, description, notifyType)
     TriggerClientEvent('ox_lib:notify', source, { title = 'Openables', description = description, type = notifyType or 'error' })
@@ -76,11 +78,13 @@ local function canCarry(source, rewards, freedWeight)
     local weight = 0
     for i = 1, #rewards do
         local reward = rewards[i]
-        if not Inventory:CanCarryItem(source, reward.name, reward.count) then return false end
+        if not Inventory.CanCarryItem(source, reward.name, reward.count) then return false end
         weight += reward.weight * reward.count
     end
 
-    return Inventory:CanCarryWeight(source, weight - freedWeight)
+    -- Total weight check is only available on ox_inventory; other inventories are checked per item above
+    if hasOx then return exports.ox_inventory:CanCarryWeight(source, weight - freedWeight) end
+    return true
 end
 
 local function giveRewards(source, rewards)
@@ -88,20 +92,38 @@ local function giveRewards(source, rewards)
 
     for i = 1, #rewards do
         local reward = rewards[i]
-        if Inventory:AddItem(source, reward.name, reward.count) then
+        if Inventory.AddItem(source, reward.name, reward.count) then
             log(source, ('received %dx %s'):format(reward.count, reward.name), 'item:' .. reward.name)
         else
             leftovers[#leftovers + 1] = { reward.name, reward.count }
         end
     end
 
-    -- Never lose rewards: anything that would not fit goes on the ground
-    if #leftovers > 0 then
+    if #leftovers == 0 then return end
+
+    -- Never lose rewards: on ox_inventory anything that would not fit goes on the ground
+    if hasOx then
         local ped = GetPlayerPed(source)
-        Inventory:CustomDrop('Openable', leftovers, GetEntityCoords(ped), nil, nil, GetPlayerRoutingBucket(source))
+        exports.ox_inventory:CustomDrop('Openable', leftovers, GetEntityCoords(ped), nil, nil, GetPlayerRoutingBucket(source))
         notify(source, 'Some items did not fit and were dropped at your feet.', 'inform')
         log(source, ('dropped %d reward(s) on the ground'):format(#leftovers))
+    else
+        notify(source, 'Some items did not fit in your inventory.')
+        log(source, ('%d reward(s) did not fit'):format(#leftovers))
     end
+end
+
+--- job = 'police' | { 'police', 'sheriff' } | { police = 2 } (name or minimum grade)
+local function hasJob(source, job)
+    local data = Framework.GetPlayerJobData(source)
+    local name, grade = data and data.jobName, data and tonumber(data.gradeRank) or 0
+    if not name then return false end
+    if type(job) == 'string' then return name == job end
+    for k, v in pairs(job) do
+        if type(k) == 'number' and v == name then return true end
+        if k == name and grade >= (tonumber(v) or 0) then return true end
+    end
+    return false
 end
 
 -------------
@@ -118,11 +140,11 @@ local function open(source, itemName, slot)
         return notify(source, 'You are opening items too quickly.')
     end
 
-    if openable.job and not exports.qbx_core:HasGroup(source, openable.job) then
+    if openable.job and not hasJob(source, openable.job) then
         return notify(source, "You don't have permission to open this.")
     end
 
-    local slotData = Inventory:GetSlot(source, slot.slot)
+    local slotData = Inventory.GetItemBySlot(source, slot.slot)
     if not slotData or slotData.name ~= itemName then return end
 
     local rewards = rollRewards(openable.rewards)
@@ -152,7 +174,7 @@ local function open(source, itemName, slot)
     end
 
     -- Consume from the exact slot used. Fails if the item moved or was dropped meanwhile.
-    if not Inventory:RemoveItem(source, itemName, 1, nil, slot.slot) then
+    if not Inventory.RemoveItem(source, itemName, 1, slot.slot) then
         return notify(source, 'The item is no longer in your inventory.')
     end
 
@@ -173,15 +195,16 @@ local function validateRewards()
     local missing = {}
 
     for openableName, openable in pairs(Config.Openables) do
-        if not Inventory:Items(openableName) then
+        if not Inventory.GetItemInfo(openableName).name then
             missing[#missing + 1] = ('%s (the openable itself)'):format(openableName)
         end
 
         for i = 1, #openable.rewards do
             local name = openable.rewards[i].item
-            local def = Inventory:Items(name)
+            local def = Inventory.GetItemInfo(name)
 
-            if def then
+            if def.name then
+                def.weight = tonumber(def.weight) or 0
                 itemDefs[name] = def
             elseif not itemDefs[name] then
                 itemDefs[name] = false
@@ -191,7 +214,7 @@ local function validateRewards()
     end
 
     for i = 1, #missing do
-        lib.print.warn(('item "%s" is not registered in ox_inventory and will be skipped'):format(missing[i]))
+        lib.print.warn(('item "%s" is not registered in your inventory and will be skipped'):format(missing[i]))
     end
 end
 
@@ -218,8 +241,8 @@ end
 validateRewards()
 
 for itemName in pairs(Config.Openables) do
-    exports.qbx_core:CreateUseableItem(itemName, function(source, slot)
-        -- Run outside ox_inventory's useItem callback so it is not held open for the whole animation
+    Framework.RegisterUsableItem(itemName, function(source, slot)
+        -- Run outside the inventory's use-item callback so it is not held open for the whole animation
         CreateThread(function() open(source, itemName, slot) end)
     end)
 end

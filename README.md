@@ -2,19 +2,20 @@
 
 Use one item (ammo box, cigarette pack, starter kit, gift box...) to receive one or more reward items, with an animation, held prop and cancellable progress bar.
 
-Built for **Qbox + ox_inventory + ox_lib**.
+Works with Qbox, QBCore and ESX, and any inventory supported by [community_bridge](https://github.com/TheOrderFivem/community_bridge).
 
 ## Requirements
 
 - `ox_lib`
-- `ox_inventory`
-- `qbx_core`
+- `community_bridge` (with a supported framework and inventory)
 
 ## Installation
 
-1. Ensure `ox_lib`, `ox_inventory` and `qbx_core` start before this resource.
-2. Make sure every openable item and every reward exists in `ox_inventory/data/items.lua` (or `weapons.lua`). Missing names are listed in the console on start and skipped.
-3. Copy the PNGs in `images/` to `ox_inventory/web/images/` if you have not already.
+1. Ensure `ox_lib` and `community_bridge` start before this resource.
+2. Make sure every openable item and every reward exists in your inventory's item list. Missing names are listed in the console on start and skipped.
+3. Copy the PNGs in `images/` to your inventory's image folder if you have not already.
+
+With ox_inventory, rewards that don't fit are dropped at the player's feet and the total carry weight is checked. Other inventories check each item.
 
 ## How it works
 
