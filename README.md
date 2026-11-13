@@ -4,12 +4,12 @@ Use one item (ammo box, cigarette pack, starter kit, gift box...) to receive one
 
 Works with Qbox, QBCore and ESX, and any inventory supported by [community_bridge](https://github.com/TheOrderFivem/community_bridge).
 
-## Requirements
+## 📦 Requirements
 
-- `ox_lib`
-- `community_bridge` **0.13.6 or newer** (with Qbox, QBCore or ESX and a supported inventory)
+- [ox_lib](https://github.com/overextended/ox_lib)
+- [community_bridge](https://github.com/TheOrderFivem/community_bridge) **0.13.6 or newer** (with [Qbox](https://github.com/Qbox-project/qbx_core), [QBCore](https://github.com/qbcore-framework/qb-core) or [ESX](https://github.com/esx-framework/esx_core) and a supported inventory)
 
-## Installation
+## ⚡ Installation
 
 1. Ensure `ox_lib` and `community_bridge` start before this resource.
 2. Make sure every openable item and every reward exists in your inventory's item list. Missing names are listed in the console on start and skipped.
@@ -17,7 +17,7 @@ Works with Qbox, QBCore and ESX, and any inventory supported by [community_bridg
 
 With ox_inventory, rewards that don't fit are dropped at the player's feet and the total carry weight is checked. Other inventories check each item.
 
-## How it works
+## 🎮 How it works
 
 1. The player uses the item.
 2. The server checks cooldown, job and inventory space, and rolls the rewards.
@@ -28,7 +28,7 @@ With ox_inventory, rewards that don't fit are dropped at the player's feet and t
 
 The server also checks the progress bar actually ran for its full duration, so a modified client cannot skip it.
 
-## Settings (`config.lua`)
+## ⚙️ Settings (`config.lua`)
 
 | Setting | Description |
 | --- | --- |
@@ -39,7 +39,7 @@ The server also checks the progress bar actually ran for its full duration, so a
 | `Config.CheckInventorySpace` | Refuses to open if the rewards will not fit |
 | `Config.Defaults` | Default duration, label, animation and prop placement |
 
-## Adding an openable
+## ➕ Adding an openable
 
 ```lua
 Config.Openables = {
@@ -77,8 +77,21 @@ Config.Openables = {
 - Cash rewards use the `money` item. On ox_inventory that's the cash item; on inventories without one (qb-inventory, ESX default) it's paid into the player's cash account instead.
 - Item names are matched regardless of case, and ox_inventory names are translated for other inventories: `ammo-9` / `ammo-45` -> `pistol_ammo`, `ammo-rifle` -> `rifle_ammo`, `ammo-shotgun` -> `shotgun_ammo`, `ammo-sniper` -> `snp_ammo`, `black_money` -> `markedbills`, `WEAPON_TASER` -> `weapon_stungun`.
 
-## Changes in 2.1.0
+## 🆕 Changes in 2.1.0
 
 - Runs on Qbox, QBCore and ESX through community_bridge.
 - Cash rewards work on inventories without a money item; ox ammo names and a few weapon names are translated automatically.
 - Item names are matched regardless of case.
+
+<!-- gldnrmz-links -->
+---
+
+## 🔗 Links
+
+<p align="center">
+  <a href="https://discord.gg/7YHJ7774jA"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://forum.cfx.re/u/gldnrmz/summary"><img src="https://img.shields.io/badge/Cfx.re-F40552?style=for-the-badge&logoColor=white" alt="Cfx.re forum" /></a>
+  <a href="https://5metrics.dev/resources?search=gldnrmz"><img src="https://img.shields.io/badge/5Metrics-00BFFF?style=for-the-badge&logoColor=white" alt="5Metrics" /></a>
+  <a href="https://gldnrmz.tebex.io"><img src="https://img.shields.io/badge/Tebex-FFD700?style=for-the-badge&logoColor=black" alt="Tebex store" /></a>
+  <a href="https://www.buymeacoffee.com/gldnrmz"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-FF813F?style=for-the-badge&logo=buymeacoffee&logoColor=white" alt="Buy me a coffee" /></a>
+</p>
