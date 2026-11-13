@@ -191,17 +191,26 @@ end
 -- Startup --
 -------------
 
+---Item definition by name, ignoring case (ox_inventory keeps add-on weapons like weapon_glock17 lowercase).
+local function findItem(name)
+    for _, candidate in ipairs({ name, name:lower(), name:upper() }) do
+        local ok, def = pcall(Inventory.GetItemInfo, candidate)
+        if ok and type(def) == 'table' and def.name then return def end
+    end
+    return {}
+end
+
 local function validateRewards()
     local missing = {}
 
     for openableName, openable in pairs(Config.Openables) do
-        if not Inventory.GetItemInfo(openableName).name then
+        if not findItem(openableName).name then
             missing[#missing + 1] = ('%s (the openable itself)'):format(openableName)
         end
 
         for i = 1, #openable.rewards do
             local name = openable.rewards[i].item
-            local def = Inventory.GetItemInfo(name)
+            local def = findItem(name)
 
             if def.name then
                 def.weight = tonumber(def.weight) or 0
