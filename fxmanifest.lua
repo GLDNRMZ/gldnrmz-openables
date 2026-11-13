@@ -5,7 +5,7 @@ use_experimental_fxv2_oal 'yes'
 
 author 'gldnrmz'
 description 'Openable items: use one item to receive rewards (any framework via community_bridge)'
-version '2.0.0'
+version '2.1.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
