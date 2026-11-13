@@ -7,6 +7,30 @@ local busy = {}     -- [source] = true while a player is opening something
 local lastOpen = {} -- [source] = GetGameTimer() of their last open
 local itemDefs = {} -- [configured name] = item definition from the inventory (valid rewards only)
 
+-- Same thing under another inventory's name (config uses ox_inventory names; QBCore spells them differently)
+local ALIASES = {
+    ['ammo-9'] = { 'pistol_ammo' }, ['ammo-45'] = { 'pistol_ammo' }, ['ammo-22'] = { 'pistol_ammo' },
+    ['ammo-rifle'] = { 'rifle_ammo' }, ['ammo-rifle2'] = { 'rifle_ammo' },
+    ['ammo-shotgun'] = { 'shotgun_ammo' }, ['ammo-sniper'] = { 'snp_ammo' },
+    ['black_money'] = { 'markedbills' },
+}
+
+-- Cash is an item on ox_inventory but an account balance on QBCore / ESX default inventories
+local CASH = { money = true, cash = true }
+local CASH_DEF = { name = '__cash', label = 'Cash', weight = 0 }
+
+---Item definition by name, ignoring case and trying known aliases (e.g. ammo-9 -> pistol_ammo).
+local function findItem(name)
+    local candidates = { name, name:lower(), name:upper() }
+    for _, alias in ipairs(ALIASES[name:lower()] or {}) do candidates[#candidates + 1] = alias end
+    for _, candidate in ipairs(candidates) do
+        local ok, def = pcall(Inventory.GetItemInfo, candidate)
+        if ok and type(def) == 'table' and def.name then return def end
+    end
+    if CASH[name:lower()] then return CASH_DEF end
+    return {}
+end
+
 local function notify(source, description, notifyType)
     TriggerClientEvent('ox_lib:notify', source, { title = 'Openables', description = description, type = notifyType or 'error' })
 end
@@ -78,8 +102,10 @@ local function canCarry(source, rewards, freedWeight)
     local weight = 0
     for i = 1, #rewards do
         local reward = rewards[i]
-        if not Inventory.CanCarryItem(source, reward.name, reward.count) then return false end
-        weight += reward.weight * reward.count
+        if reward.name ~= CASH_DEF.name then
+            if not Inventory.CanCarryItem(source, reward.name, reward.count) then return false end
+            weight += reward.weight * reward.count
+        end
     end
 
     -- Total weight check is only available on ox_inventory; other inventories are checked per item above
@@ -92,7 +118,11 @@ local function giveRewards(source, rewards)
 
     for i = 1, #rewards do
         local reward = rewards[i]
-        if Inventory.AddItem(source, reward.name, reward.count) then
+        if reward.name == CASH_DEF.name then
+            if Framework.AddAccountBalance(source, 'cash', reward.count) ~= false then
+                log(source, ('received $%d cash'):format(reward.count), 'item:cash')
+            end
+        elseif Inventory.AddItem(source, reward.name, reward.count) then
             log(source, ('received %dx %s'):format(reward.count, reward.name), 'item:' .. reward.name)
         else
             leftovers[#leftovers + 1] = { reward.name, reward.count }
@@ -192,14 +222,6 @@ end
 -------------
 
 ---Item definition by name, ignoring case (ox_inventory keeps add-on weapons like weapon_glock17 lowercase).
-local function findItem(name)
-    for _, candidate in ipairs({ name, name:lower(), name:upper() }) do
-        local ok, def = pcall(Inventory.GetItemInfo, candidate)
-        if ok and type(def) == 'table' and def.name then return def end
-    end
-    return {}
-end
-
 local function validateRewards()
     local missing = {}
 
