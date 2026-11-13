@@ -13,6 +13,7 @@ local ALIASES = {
     ['ammo-rifle'] = { 'rifle_ammo' }, ['ammo-rifle2'] = { 'rifle_ammo' },
     ['ammo-shotgun'] = { 'shotgun_ammo' }, ['ammo-sniper'] = { 'snp_ammo' },
     ['black_money'] = { 'markedbills' },
+    ['weapon_taser'] = { 'weapon_stungun' },
 }
 
 -- Cash is an item on ox_inventory but an account balance on QBCore / ESX default inventories
