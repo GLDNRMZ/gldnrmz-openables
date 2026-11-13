@@ -7,7 +7,7 @@ Works with Qbox, QBCore and ESX, and any inventory supported by [community_bridg
 ## Requirements
 
 - `ox_lib`
-- `community_bridge` (with a supported framework and inventory)
+- `community_bridge` **0.13.6 or newer** (with Qbox, QBCore or ESX and a supported inventory)
 
 ## Installation
 
@@ -74,8 +74,11 @@ Config.Openables = {
 - `chance`: percent, default 100. Values from 1 up can have decimals (`1.5` = 1.5%). Values between 0 and 1 are read as fractions (`0.25` = 25%).
 - Without `pick`, every reward rolls its own chance independently.
 - Rewards are rolled fresh on every open.
-- Cash rewards should use the `money` item (ox_inventory syncs it with the Qbox cash account).
+- Cash rewards use the `money` item. On ox_inventory that's the cash item; on inventories without one (qb-inventory, ESX default) it's paid into the player's cash account instead.
+- Item names are matched regardless of case, and ox_inventory names are translated for other inventories: `ammo-9` / `ammo-45` -> `pistol_ammo`, `ammo-rifle` -> `rifle_ammo`, `ammo-shotgun` -> `shotgun_ammo`, `ammo-sniper` -> `snp_ammo`, `black_money` -> `markedbills`, `WEAPON_TASER` -> `weapon_stungun`.
 
-## Version
+## Changes in 2.1.0
 
-`2.0.0`
+- Runs on Qbox, QBCore and ESX through community_bridge.
+- Cash rewards work on inventories without a money item; ox ammo names and a few weapon names are translated automatically.
+- Item names are matched regardless of case.
