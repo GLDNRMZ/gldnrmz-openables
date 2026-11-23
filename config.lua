@@ -139,6 +139,7 @@ Config.Openables = {
     redwoodcigs   = { prop = 'v_ret_ml_cigs',  rewards = { { item = 'cigarette', amount = 20 } } },
     cardiaquecigs = { prop = 'v_ret_ml_cigs5', rewards = { { item = 'cigarette', amount = 20 } } },
     debonairecigs = { prop = 'v_ret_ml_cigs3', rewards = { { item = 'cigarette', amount = 20 } } },
+    cigarbox      = { prop = 'v_ret_ml_cigs3', rewards = { { item = 'cigar', amount = 10 } } },
 
     ------------------
     -- MARKED BILLS --
